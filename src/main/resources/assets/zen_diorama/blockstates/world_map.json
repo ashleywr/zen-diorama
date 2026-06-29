@@ -1,0 +1,9 @@
+{
+  "variants": {
+    "facing=up":    { "model": "zen_diorama:block/world_map" },
+    "facing=north": { "model": "zen_diorama:block/world_map_wall" },
+    "facing=south": { "model": "zen_diorama:block/world_map_wall", "y": 180 },
+    "facing=east":  { "model": "zen_diorama:block/world_map_wall", "y": 90 },
+    "facing=west":  { "model": "zen_diorama:block/world_map_wall", "y": 270 }
+  }
+}

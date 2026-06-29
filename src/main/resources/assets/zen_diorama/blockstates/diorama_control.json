@@ -1,0 +1,7 @@
+{
+  "variants": {
+    "": {
+      "model": "zen_diorama:block/diorama_control"
+    }
+  }
+}

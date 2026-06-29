@@ -1,0 +1,17 @@
+{
+  "parent": "minecraft:block/block",
+  "textures": {
+    "base": "minecraft:block/cobbled_deepslate",
+    "particle": "minecraft:block/cobbled_deepslate"
+  },
+  "elements": [
+    {
+      "from": [0, 0, 0],
+      "to":   [16, 16, 0.5],
+      "faces": {
+        "north": { "texture": "#base", "cullface": "north" },
+        "south": { "texture": "#base" }
+      }
+    }
+  ]
+}

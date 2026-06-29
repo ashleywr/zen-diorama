@@ -1,0 +1,17 @@
+{
+  "type": "zen_diorama:diorama",
+  "generator": {
+    "type": "minecraft:flat",
+    "settings": {
+      "biome": "minecraft:forest",
+      "features": false,
+      "lakes": false,
+      "layers": [
+        {
+          "block": "minecraft:air",
+          "height": 256
+        }
+      ]
+    }
+  }
+}
