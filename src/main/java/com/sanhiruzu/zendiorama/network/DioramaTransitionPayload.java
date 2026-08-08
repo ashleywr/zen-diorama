@@ -17,10 +17,11 @@ public record DioramaTransitionPayload(boolean entering, @Nullable BlockPos fram
 
     private static void encode(FriendlyByteBuf buffer, DioramaTransitionPayload payload) {
         buffer.writeBoolean(payload.entering());
-        boolean hasPos = payload.framePos() != null;
+        BlockPos framePos = payload.framePos();
+        boolean hasPos = framePos != null;
         buffer.writeBoolean(hasPos);
         if (hasPos) {
-            buffer.writeBlockPos(payload.framePos());
+            buffer.writeBlockPos(framePos);
         }
     }
 

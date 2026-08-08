@@ -9,7 +9,7 @@ class WorldMapZoomTuningTest {
     @Test
     void singleTileKeepsPresetValues() {
         WorldMapZoomTuning.EffectiveZoom zoom = WorldMapZoomTuning.resolve(
-                WorldMapZoomLevel.LEVELS[WorldMapZoomLevel.LEVELS.length - 1], 1, 1);
+                WorldMapZoomLevel.LEVELS.get(WorldMapZoomLevel.LEVELS.size() - 1), 1, 1);
 
         assertEquals(1536, zoom.scale());
         assertEquals(256, zoom.voxels());
@@ -18,7 +18,7 @@ class WorldMapZoomTuningTest {
     @Test
     void provincePresetMatchesGoodSingleTileAnchor() {
         WorldMapZoomTuning.EffectiveZoom zoom = WorldMapZoomTuning.resolve(
-                WorldMapZoomLevel.LEVELS[4], 1, 1);
+                WorldMapZoomLevel.LEVELS.get(4), 1, 1);
 
         assertEquals(1024, zoom.scale());
         assertEquals(128, zoom.voxels());
@@ -27,11 +27,11 @@ class WorldMapZoomTuningTest {
     @Test
     void eightByEightMapDividesPresetScaleAcrossTiles() {
         WorldMapZoomTuning.EffectiveZoom zoom = WorldMapZoomTuning.resolve(
-                WorldMapZoomLevel.LEVELS[0], 8, 8);
+                WorldMapZoomLevel.LEVELS.get(0), 8, 8);
         WorldMapZoomTuning.EffectiveZoom zoom2 = WorldMapZoomTuning.resolve(
-                WorldMapZoomLevel.LEVELS[1], 8, 8);
+                WorldMapZoomLevel.LEVELS.get(1), 8, 8);
         WorldMapZoomTuning.EffectiveZoom zoom3 = WorldMapZoomTuning.resolve(
-                WorldMapZoomLevel.LEVELS[2], 8, 8);
+                WorldMapZoomLevel.LEVELS.get(2), 8, 8);
 
         assertEquals(16, zoom.scale());
         assertEquals(32, zoom2.scale());
@@ -44,7 +44,7 @@ class WorldMapZoomTuningTest {
     @Test
     void tenByTenMapDividesStreetPresetAcrossTiles() {
         WorldMapZoomTuning.EffectiveZoom zoom = WorldMapZoomTuning.resolve(
-                WorldMapZoomLevel.LEVELS[0], 10, 10);
+                WorldMapZoomLevel.LEVELS.get(0), 10, 10);
 
         assertEquals(13, zoom.scale());
     }
@@ -52,9 +52,9 @@ class WorldMapZoomTuningTest {
     @Test
     void largerPresetStillResolvesLargerOnSameFootprint() {
         WorldMapZoomTuning.EffectiveZoom small = WorldMapZoomTuning.resolve(
-                WorldMapZoomLevel.LEVELS[0], 8, 8);
+                WorldMapZoomLevel.LEVELS.get(0), 8, 8);
         WorldMapZoomTuning.EffectiveZoom large = WorldMapZoomTuning.resolve(
-                WorldMapZoomLevel.LEVELS[4], 8, 8);
+                WorldMapZoomLevel.LEVELS.get(4), 8, 8);
 
         assertTrue(large.scale() > small.scale());
     }
@@ -62,13 +62,13 @@ class WorldMapZoomTuningTest {
     @Test
     void eightByEightTopEndDividesPresetScaleAcrossTiles() {
         WorldMapZoomTuning.EffectiveZoom province = WorldMapZoomTuning.resolve(
-                WorldMapZoomLevel.LEVELS[4], 8, 8);
+                WorldMapZoomLevel.LEVELS.get(4), 8, 8);
         WorldMapZoomTuning.EffectiveZoom region = WorldMapZoomTuning.resolve(
-                WorldMapZoomLevel.LEVELS[5], 8, 8);
+                WorldMapZoomLevel.LEVELS.get(5), 8, 8);
         WorldMapZoomTuning.EffectiveZoom kingdom = WorldMapZoomTuning.resolve(
-                WorldMapZoomLevel.LEVELS[6], 8, 8);
+                WorldMapZoomLevel.LEVELS.get(6), 8, 8);
         WorldMapZoomTuning.EffectiveZoom continent = WorldMapZoomTuning.resolve(
-                WorldMapZoomLevel.LEVELS[7], 8, 8);
+                WorldMapZoomLevel.LEVELS.get(7), 8, 8);
 
         assertEquals(128, province.scale());
         assertEquals(144, region.scale());
@@ -82,7 +82,7 @@ class WorldMapZoomTuningTest {
     @Test
     void threeByThreeTownPresetSpansTheWholeMosaic() {
         WorldMapZoomTuning.EffectiveZoom town = WorldMapZoomTuning.resolve(
-                WorldMapZoomLevel.LEVELS[3], 3, 3);
+                WorldMapZoomLevel.LEVELS.get(3), 3, 3);
 
         assertEquals(256, town.scale());
         assertEquals(128, town.voxels());

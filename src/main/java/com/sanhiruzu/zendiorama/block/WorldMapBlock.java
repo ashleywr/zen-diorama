@@ -71,7 +71,7 @@ public class WorldMapBlock extends BaseEntityBlock {
         wme.detectRegionFromNeighbors();
         if (!wme.isConfigured()) {
             // Standalone first tile — center on the placer's feet with default zoom and sample now.
-            WorldMapZoomLevel zoom = WorldMapZoomLevel.LEVELS[wme.getZoomIndex()];
+            WorldMapZoomLevel zoom = WorldMapZoomLevel.LEVELS.get(wme.getZoomIndex());
             WorldMapZoomTuning.EffectiveZoom tuned = WorldMapZoomTuning.resolve(zoom, 1, 1);
             wme.configure((int) placer.getX(), (int) placer.getZ(), tuned.scale(), pos);
             wme.applyZoom(wme.getZoomIndex(), tuned.voxels());
@@ -122,8 +122,8 @@ public class WorldMapBlock extends BaseEntityBlock {
         if (player.isShiftKeyDown()) {
             // Shift+right-click → cycle zoom level. Normal right-click is reserved for refresh
             // so accidental clicks do not queue expensive map resampling at a different scale.
-            int newZoom = (mapBe.getZoomIndex() + 1) % WorldMapZoomLevel.LEVELS.length;
-            WorldMapZoomLevel zoom = WorldMapZoomLevel.LEVELS[newZoom];
+            int newZoom = (mapBe.getZoomIndex() + 1) % WorldMapZoomLevel.LEVELS.size();
+            WorldMapZoomLevel zoom = WorldMapZoomLevel.LEVELS.get(newZoom);
             WorldMapBlockEntity.ConnectedGroup group = WorldMapBlockEntity.collectConnectedGroup(level, pos);
             WorldMapZoomTuning.EffectiveZoom tuned = group == null
                     ? WorldMapZoomTuning.resolve(zoom, 1, 1)
@@ -131,7 +131,7 @@ public class WorldMapBlock extends BaseEntityBlock {
             WorldMapBlockEntity.reZoomConnected(level, pos, newZoom);
             int effectiveVoxels = Math.min(tuned.voxels(), WorldMapBlockEntity.MAX_SAMPLER_RESOLUTION);
             player.sendSystemMessage(Component.literal(
-                    "Zoom [" + (newZoom + 1) + "/" + WorldMapZoomLevel.LEVELS.length + "]  "
+                    "Zoom [" + (newZoom + 1) + "/" + WorldMapZoomLevel.LEVELS.size() + "]  "
                     + zoom.name() + "  — " + tuned.scale() + " blocks / " + voxelSummary(tuned.voxels())
                     + " per tile on " + groupLabel(group)
                     + "  (" + samplingSummary(tuned.scale(), effectiveVoxels) + ")"));

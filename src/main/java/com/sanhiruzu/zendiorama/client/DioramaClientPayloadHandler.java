@@ -47,8 +47,8 @@ public final class DioramaClientPayloadHandler {
     }
 
     public static void handleTransition(DioramaTransitionPayload payload) {
-        if (payload.entering() && payload.framePos() != null) {
-            BlockPos p = payload.framePos();
+        BlockPos p = payload.framePos();
+        if (payload.entering() && p != null) {
             // Capture the 6 faces over the next frames via the normal pipeline (camera at block center),
             // then ack the server so it teleports us in. The capture frames are hidden by the overlay.
             DioramaOffscreenCubemap.beginCapture(

@@ -28,6 +28,7 @@ import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayDeque;
+import java.util.Collections;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -106,7 +107,6 @@ public class WorldMapBlockEntity extends BlockEntity {
         if (!self.refreshImmediately && !self.isSnapshotRefreshPhase(level.getGameTime())) return;
         if (level.getServer() == null) return;
         ServerLevel overworld = level.getServer().overworld();
-        if (overworld == null) return;
         self.refreshSnapshotFromOverworld(overworld);
     }
 
@@ -151,6 +151,9 @@ public class WorldMapBlockEntity extends BlockEntity {
     public record PlaneDir(Direction blockDir, int dMapX, int dMapZ) {}
     public record ConnectedGroup(Direction facing, Map<BlockPos, WorldMapBlockEntity> tiles,
                                  int minA, int maxA, int minB, int maxB) {
+        public ConnectedGroup {
+            tiles = Collections.unmodifiableMap(tiles);
+        }
         public int width() { return maxA - minA + 1; }
         public int height() { return maxB - minB + 1; }
         public int tileCount() { return tiles.size(); }
@@ -682,9 +685,9 @@ public class WorldMapBlockEntity extends BlockEntity {
         int scale = ref.blocksPerTile;
         int voxels = ref.samplerResolution;
         BlockPos anchorPos = resolveAnchorForGroup(group, ref.getStoredAnchorPos(), startPos);
-        if (zoomIdx >= 0 && zoomIdx < WorldMapZoomLevel.LEVELS.length) {
+        if (zoomIdx >= 0 && zoomIdx < WorldMapZoomLevel.LEVELS.size()) {
             WorldMapZoomTuning.EffectiveZoom tuned = WorldMapZoomTuning.resolve(
-                    WorldMapZoomLevel.LEVELS[zoomIdx], group.width(), group.height());
+                    WorldMapZoomLevel.LEVELS.get(zoomIdx), group.width(), group.height());
             scale = tuned.scale();
             voxels = tuned.voxels();
         }
@@ -706,7 +709,7 @@ public class WorldMapBlockEntity extends BlockEntity {
     public static void reZoomConnected(Level level, BlockPos startPos, int newZoomIdx) {
         ConnectedGroup group = collectConnectedGroup(level, startPos);
         if (group == null) return;
-        WorldMapZoomLevel zoom = WorldMapZoomLevel.LEVELS[newZoomIdx];
+        WorldMapZoomLevel zoom = WorldMapZoomLevel.LEVELS.get(newZoomIdx);
         WorldMapZoomTuning.EffectiveZoom tuned = WorldMapZoomTuning.resolve(zoom, group.width(), group.height());
 
         // Preserve the current sampled world center of the full mosaic. Using block

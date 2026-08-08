@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Suppresses SpotBugs findings that are intentional patterns in this codebase rather than bugs:
+
+  - NP_NONNULL_PARAM_VIOLATION on ZenDiorama: BlockEntityType.Builder.build(null) is the standard
+    NeoForge idiom for the unused DataFixerUpper Type parameter.
+
+  - PA_PUBLIC_PRIMITIVE_ATTRIBUTE on renderCache/snapshotVersion: these are hot-path fields read
+    every render frame across the block/client package boundary by design (see their field
+    javadoc in the block entity classes).
+
+  - BC_VACUOUS_INSTANCEOF on the renderCache checks: renderCache is deliberately typed Object so
+    the server-safe block entity class does not need to load client-only render classes; the
+    instanceof also doubles as the null guard, so it is not truly redundant even though every
+    concrete assignment happens to be the same type.
+
+  - AT_STALE_THREAD_WRITE_OF_PRIMITIVE on the "closed" flags: these caches are only ever baked,
+    read, and closed from the client render thread; SpotBugs cannot see that guarantee statically.
+
+  - NP_NONNULL_PARAM_VIOLATION on WorldMapGeometry.safeMapColor: probes BlockState.getMapColor
+    with a null BlockGetter/BlockPos on purpose (most blocks ignore them) and the whole call is
+    already wrapped in a try/catch that falls back to COLOR_GRAY for the blocks that don't.
+-->
+<FindBugsFilter>
+    <Match>
+        <Class name="com.sanhiruzu.zendiorama.ZenDiorama"/>
+        <Bug pattern="NP_NONNULL_PARAM_VIOLATION"/>
+    </Match>
+    <Match>
+        <Or>
+            <Class name="com.sanhiruzu.zendiorama.block.DioramaFrameBlockEntity"/>
+            <Class name="com.sanhiruzu.zendiorama.block.WorldMapBlockEntity"/>
+        </Or>
+        <Bug pattern="PA_PUBLIC_PRIMITIVE_ATTRIBUTE"/>
+    </Match>
+    <Match>
+        <Or>
+            <Class name="com.sanhiruzu.zendiorama.block.DioramaFrameBlockEntity"/>
+            <Class name="com.sanhiruzu.zendiorama.client.DioramaFrameRenderer"/>
+        </Or>
+        <Bug pattern="BC_VACUOUS_INSTANCEOF"/>
+    </Match>
+    <Match>
+        <Or>
+            <Class name="com.sanhiruzu.zendiorama.client.CachedBlockGeometry"/>
+            <Class name="com.sanhiruzu.zendiorama.client.WorldMapGeometry"/>
+            <Class name="com.sanhiruzu.zendiorama.client.WorldMapLodCache"/>
+        </Or>
+        <Bug pattern="AT_STALE_THREAD_WRITE_OF_PRIMITIVE"/>
+    </Match>
+    <Match>
+        <Class name="com.sanhiruzu.zendiorama.client.WorldMapGeometry"/>
+        <Method name="safeMapColor"/>
+        <Bug pattern="NP_NONNULL_PARAM_VIOLATION"/>
+    </Match>
+</FindBugsFilter>

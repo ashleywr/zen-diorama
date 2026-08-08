@@ -1,7 +1,12 @@
+import com.github.spotbugs.snom.Confidence
+import com.github.spotbugs.snom.Effort
+import com.github.spotbugs.snom.SpotBugsTask
+
 plugins {
     id 'java-library'
     id 'maven-publish'
     id 'net.neoforged.gradle.userdev' version '7.1.37'
+    id 'com.github.spotbugs' version '6.5.10'
 }
 
 tasks.named('wrapper', Wrapper).configure {
@@ -35,6 +40,23 @@ base {
 
 // Mojang ships Java 21 to end users in 1.21.1, so mods should target Java 21.
 java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+
+// Static analysis. ignoreFailures is on for now so a bug report doesn't break
+// the build; flip it off once the current findings are triaged.
+spotbugs {
+    // Kotlin enums need .valueOf() from Groovy: https://discuss.kotlinlang.org/t/bug-cannot-use-kotlin-enum-from-groovy/1521
+    effort = Effort.valueOf('MAX')
+    reportLevel = Confidence.valueOf('MEDIUM')
+    ignoreFailures = true
+    excludeFilter = rootProject.file('spotbugs-exclude.xml')
+}
+
+tasks.withType(SpotBugsTask).configureEach {
+    reports {
+        html.required = true
+        xml.required = false
+    }
+}
 
 //minecraft.accessTransformers.file rootProject.file('src/main/resources/META-INF/accesstransformer.cfg')
 //minecraft.accessTransformers.entry public net.minecraft.client.Minecraft textureManager # textureManager

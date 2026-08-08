@@ -116,6 +116,21 @@ public final class WorldMapProminentObjects {
     }
 
     public record Result(int width, boolean[] accepted, int[] baseline) {
+        public Result {
+            accepted = accepted.clone();
+            baseline = baseline.clone();
+        }
+
+        @Override
+        public boolean[] accepted() {
+            return accepted.clone();
+        }
+
+        @Override
+        public int[] baseline() {
+            return baseline.clone();
+        }
+
         public boolean isObjectColumn(int x, int z) {
             return x >= 0 && z >= 0 && index(x, z, width) < accepted.length && accepted[index(x, z, width)];
         }

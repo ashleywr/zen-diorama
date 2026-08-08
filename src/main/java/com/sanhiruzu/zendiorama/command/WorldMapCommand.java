@@ -144,21 +144,21 @@ public final class WorldMapCommand {
         WorldMapBlockEntity.ConnectedGroup group = WorldMapBlockEntity.collectConnectedGroup(
                 wme.getLevel(), wme.getBlockPos());
         String zoomLine;
-        if (wme.getZoomIndex() >= 0 && wme.getZoomIndex() < WorldMapZoomLevel.LEVELS.length && group != null) {
-            WorldMapZoomLevel zoom = WorldMapZoomLevel.LEVELS[wme.getZoomIndex()];
+        if (wme.getZoomIndex() >= 0 && wme.getZoomIndex() < WorldMapZoomLevel.LEVELS.size() && group != null) {
+            WorldMapZoomLevel zoom = WorldMapZoomLevel.LEVELS.get(wme.getZoomIndex());
             WorldMapZoomTuning.EffectiveZoom tuned = WorldMapZoomTuning.resolve(zoom, group.width(), group.height());
-            zoomLine = "[" + (wme.getZoomIndex() + 1) + "/" + WorldMapZoomLevel.LEVELS.length + "]  "
+            zoomLine = "[" + (wme.getZoomIndex() + 1) + "/" + WorldMapZoomLevel.LEVELS.size() + "]  "
                     + zoom.name() + "  (" + tuned.scale() + " blocks / " + voxelSummary(tuned.voxels())
                     + " per tile on " + group.width() + "x" + group.height() + ")";
         } else {
             zoomLine = "[custom]  " + scale + " blocks / " + voxelSummary(voxels);
         }
         com.sanhiruzu.zendiorama.block.WorldMapPreset style =
-            com.sanhiruzu.zendiorama.block.WorldMapPreset.PRESETS[wme.getStyleIndex()];
+            com.sanhiruzu.zendiorama.block.WorldMapPreset.PRESETS.get(wme.getStyleIndex());
         ctx.getSource().sendSuccess(() -> Component.literal(
             "World Map @ " + wme.getBlockPos().toShortString()
             + "\n  zoom:    " + zoomLine
-            + "\n  style:   [" + (wme.getStyleIndex() + 1) + "/" + com.sanhiruzu.zendiorama.block.WorldMapPreset.PRESETS.length + "]  " + style.name() + "  (height " + style.height() + "  tint " + style.tint() + ")"
+            + "\n  style:   [" + (wme.getStyleIndex() + 1) + "/" + com.sanhiruzu.zendiorama.block.WorldMapPreset.PRESETS.size() + "]  " + style.name() + "  (height " + style.height() + "  tint " + style.tint() + ")"
             + "\n  sampled: " + actual + "×" + actual + "  (" + sampling + ")"
             + "\n  height:  " + wme.getEffectiveHeightExaggeration()
             + "\n  tint:    " + wme.getEffectiveElevationTint()), false);

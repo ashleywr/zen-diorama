@@ -20,7 +20,7 @@ public class DioramaFrameRenderer implements BlockEntityRenderer<DioramaFrameBlo
     private static final float MINIATURE_SCALE = 1.0F / 16.0F;
     private static final int PLOT_SIZE = 15;
 
-    public static boolean suppressMiniature = false;
+    static boolean suppressMiniature = false;
 
     private final BlockRenderDispatcher blockRenderer;
 

@@ -1,9 +1,11 @@
 package com.sanhiruzu.zendiorama.block;
 
+import java.util.List;
+
 /** Paired scale + voxels for one right-click zoom step. Larger views intentionally keep a denser miniature look instead of scaling 1:1 forever. */
 public record WorldMapZoomLevel(String name, int scale, int voxels) {
 
-    public static final WorldMapZoomLevel[] LEVELS = {
+    public static final List<WorldMapZoomLevel> LEVELS = List.of(
         new WorldMapZoomLevel("Street",    128, 128),
         new WorldMapZoomLevel("Block",     256, 128),
         new WorldMapZoomLevel("District",  512, 128),
@@ -11,6 +13,6 @@ public record WorldMapZoomLevel(String name, int scale, int voxels) {
         new WorldMapZoomLevel("Province",  1024, 128),
         new WorldMapZoomLevel("Region",    1152, 160),
         new WorldMapZoomLevel("Kingdom",   1280, 192),
-        new WorldMapZoomLevel("Continent", 1536, 256),
-    };
+        new WorldMapZoomLevel("Continent", 1536, 256)
+    );
 }
