@@ -1,6 +1,6 @@
 # Zen Diorama
 
-Zen Diorama is a NeoForge mod for Minecraft 1.21.1 that builds miniature diorama worlds inside decorative frame blocks.
+Zen Diorama is a NeoForge mod for Minecraft 1.21.1 that builds miniature diorama worlds inside decorative frame blocks and heightmap placed in-world placeable maps.
 
 ## Release
 
