@@ -1,5 +1,7 @@
 package com.sanhiruzu.zendiorama.block;
 
+import net.minecraft.network.chat.Component;
+
 import java.util.List;
 
 /** Visual style preset: height exaggeration + elevation tint. */
@@ -11,4 +13,8 @@ public record WorldMapPreset(String name, float height, float tint) {
         new WorldMapPreset("Topo",     8.0f, 0.65f),
         new WorldMapPreset("Dramatic", 12.0f, 0.60f)
     );
+
+    public Component displayName() {
+        return Component.translatableWithFallback("worldmap.zen_diorama.preset." + name.toLowerCase(java.util.Locale.ROOT), name);
+    }
 }

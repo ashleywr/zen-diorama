@@ -1,17 +1,15 @@
 package com.sanhiruzu.zendiorama.client;
 
+import com.sanhiruzu.zendiorama.platform.DioramaServices;
 import com.sanhiruzu.zendiorama.world.DioramaDimensions;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.Options;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
-import net.neoforged.neoforge.client.event.RenderGuiEvent;
-import net.neoforged.neoforge.client.event.InputEvent;
-import net.neoforged.neoforge.client.event.ClientTickEvent;
 
 public final class DioramaHudOverlay {
-    private static final Component SCALE_BADGE = Component.literal("1:16 scale");
+    private static final Component SCALE_BADGE = Component.translatable("hud.zen_diorama.scale_badge");
     private static final int PANEL_COLOR = 0x88000000;
     private static final int BORDER_COLOR = 0x66F1D7A4;
     private static final int TEXT_COLOR = 0xFFF1D7A4;
@@ -31,26 +29,11 @@ public final class DioramaHudOverlay {
         return transitionFrames > 0;
     }
 
-    public static void suppressMouse(InputEvent.MouseButton.Pre event) {
-        if (isTransitionActive()) {
-            event.setCanceled(true);
-        }
+    public static boolean shouldCancelInput() {
+        return isTransitionActive();
     }
 
-    public static void suppressScroll(InputEvent.MouseScrollingEvent event) {
-        if (isTransitionActive()) {
-            event.setCanceled(true);
-        }
-    }
-
-    public static void suppressInteraction(InputEvent.InteractionKeyMappingTriggered event) {
-        if (isTransitionActive()) {
-            event.setSwingHand(false);
-            event.setCanceled(true);
-        }
-    }
-
-    public static void suppressMovement(ClientTickEvent.Pre event) {
+    public static void suppressMovement() {
         if (!isTransitionActive()) {
             return;
         }
@@ -67,14 +50,13 @@ public final class DioramaHudOverlay {
         options.keyAttack.setDown(false);
     }
 
-    public static void render(RenderGuiEvent.Post event) {
+    public static void render(GuiGraphics graphics) {
         Minecraft minecraft = Minecraft.getInstance();
 
         // While the entry cubemap is being captured, the world is rendering 6 spun faces underneath.
         // Cover the screen with opaque black so the player sees a brief blackout, not the spin.
-        if (DioramaOffscreenCubemap.isActive()) {
-            GuiGraphics cover = event.getGuiGraphics();
-            cover.fill(0, 0, cover.guiWidth(), cover.guiHeight(), 0xFF000000);
+        if (DioramaServices.platform().isEntryCubemapCaptureActive()) {
+            graphics.fill(0, 0, graphics.guiWidth(), graphics.guiHeight(), 0xFF000000);
             return;
         }
 
@@ -88,7 +70,6 @@ public final class DioramaHudOverlay {
             return;
         }
 
-        GuiGraphics graphics = event.getGuiGraphics();
         renderVignette(graphics, graphics.guiWidth(), graphics.guiHeight(), inDiorama);
         if (transitionFrames > 0) {
             transitionFrames--;

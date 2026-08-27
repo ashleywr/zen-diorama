@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "id": "${mod_id}",
+  "version": "${version}",
+  "name": "${mod_name}",
+  "description": "${mod_description}",
+  "authors": [
+    "Ashley Wijnen-Riems"
+  ],
+  "contact": {
+    "homepage": "https://github.com/ashleywr/zen-diorama",
+    "sources": "https://github.com/ashleywr/zen-diorama",
+    "issues": "https://github.com/ashleywr/zen-diorama/issues"
+  },
+  "license": "MIT",
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "com.sanhiruzu.zendiorama.fabric.ZenDioramaFabric"
+    ],
+    "client": [
+      "com.sanhiruzu.zendiorama.fabric.ZenDioramaFabricClient"
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=${fabric_loader_version}",
+    "fabric-api": "*",
+    "minecraft": "~${mc_version}",
+    "java": ">=${java_version}"
+  }
+}

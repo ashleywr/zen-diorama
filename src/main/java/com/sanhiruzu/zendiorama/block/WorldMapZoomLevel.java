@@ -1,5 +1,7 @@
 package com.sanhiruzu.zendiorama.block;
 
+import net.minecraft.network.chat.Component;
+
 import java.util.List;
 
 /** Paired scale + voxels for one right-click zoom step. Larger views intentionally keep a denser miniature look instead of scaling 1:1 forever. */
@@ -15,4 +17,8 @@ public record WorldMapZoomLevel(String name, int scale, int voxels) {
         new WorldMapZoomLevel("Kingdom",   1280, 192),
         new WorldMapZoomLevel("Continent", 1536, 256)
     );
+
+    public Component displayName() {
+        return Component.translatableWithFallback("worldmap.zen_diorama.zoom." + name.toLowerCase(java.util.Locale.ROOT), name);
+    }
 }

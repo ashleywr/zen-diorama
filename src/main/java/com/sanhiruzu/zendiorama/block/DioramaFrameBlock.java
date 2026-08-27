@@ -7,6 +7,7 @@ import com.sanhiruzu.zendiorama.core.PlotOrigin;
 import com.sanhiruzu.zendiorama.network.DioramaSkySnapshotPayload;
 import com.sanhiruzu.zendiorama.network.DioramaTransitionPayload;
 import com.sanhiruzu.zendiorama.network.DioramaClientboundPayloadHandler;
+import com.sanhiruzu.zendiorama.platform.DioramaServices;
 import com.sanhiruzu.zendiorama.server.DioramaPendingTeleports;
 import com.sanhiruzu.zendiorama.server.DioramaReturnData;
 import com.sanhiruzu.zendiorama.server.DioramaPlotSavedData;
@@ -36,11 +37,9 @@ import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
-import net.neoforged.neoforge.network.PacketDistributor;
 import org.jetbrains.annotations.Nullable;
 
 public class DioramaFrameBlock extends BaseEntityBlock {
-    private static final int LEGACY_TERRAIN_CLEANUP_RADIUS = 12 * 16;
     private static final int LEGACY_TERRAIN_CLEANUP_HEIGHT = 12;
     private static final net.minecraft.world.level.block.state.BlockState PRIVATE_WALL = Blocks.BARRIER.defaultBlockState();
 
@@ -141,7 +140,7 @@ public class DioramaFrameBlock extends BaseEntityBlock {
         double z = spawnPos.getZ() + 0.5D;
         source.playSound(null, frame.getBlockPos(), SoundEvents.ENDERMAN_TELEPORT, SoundSource.BLOCKS, 0.7F, 1.35F);
         // framePos carried so client can perform cubemap capture from the correct location
-        PacketDistributor.sendToPlayer(player, new DioramaTransitionPayload(true, frame.getBlockPos()));
+        DioramaServices.platform().sendToPlayer(player, new DioramaTransitionPayload(true, frame.getBlockPos()));
         // Delay teleport so the client can complete all 6 GPU cubemap frames before being moved to the diorama dimension
         DioramaPendingTeleports.enqueue(player, target, x, y, z, player.getYRot(), player.getXRot(),
                 DioramaConfig.SKYBOX_CAPTURE_DELAY_TICKS.get(),
@@ -269,7 +268,7 @@ public class DioramaFrameBlock extends BaseEntityBlock {
         BlockPos sourcePos = frame.getBlockPos();
         // Atmospheric metadata only — the actual cubemap is captured client-side by DioramaOffscreenCubemap
         int sampleDistance = 12;
-        PacketDistributor.sendToPlayer(player, new DioramaSkySnapshotPayload(
+        DioramaServices.platform().sendToPlayer(player, new DioramaSkySnapshotPayload(
                 source.dimension().location(),
                 sourcePos,
                 source.getBiome(sourcePos).value().getSkyColor(),
@@ -302,7 +301,7 @@ public class DioramaFrameBlock extends BaseEntityBlock {
             BlockState state = source.getBlockState(pos);
             if (state.isAir()) continue;
             int mapColor = state.getMapColor(source, pos).col;
-            int emission = state.getLightEmission(source, pos);
+            int emission = state.getLightEmission();
             double blockWeight = (emission > 0 ? 2.5D + emission / 4.0D : 1.5D) / Math.sqrt(i);
             Vec3 blockColor = colorToVec(mapColor);
             if (emission > 0) blockColor = blockColor.lerp(new Vec3(1.0D, 0.86D, 0.55D), 0.45D);
@@ -368,15 +367,23 @@ public class DioramaFrameBlock extends BaseEntityBlock {
         frame.markPlotInitialized();
     }
 
+    /** Half the gap between neighbouring plots, so a plot's cleanup can never reach into the
+     *  next plot's cell. Plots are laid out on a {@code plotSize + spacing} stride, so anything
+     *  wider than this would erase a neighbouring diorama's build. */
+    private static int legacyTerrainCleanupRadius() {
+        return Math.max(1, DioramaConfig.PLOT_SPACING.get() / 2);
+    }
+
     private static void clearLegacyGeneratedTerrain(ServerLevel level, PlotOrigin plotOrigin, int groundY, int plotSize) {
         int protectedMinX = plotOrigin.x() - 1;
         int protectedMaxX = plotOrigin.x() + plotSize;
         int protectedMinZ = plotOrigin.z() - 1;
         int protectedMaxZ = plotOrigin.z() + plotSize;
-        int minX = plotOrigin.x() - LEGACY_TERRAIN_CLEANUP_RADIUS;
-        int maxX = plotOrigin.x() + plotSize + LEGACY_TERRAIN_CLEANUP_RADIUS;
-        int minZ = plotOrigin.z() - LEGACY_TERRAIN_CLEANUP_RADIUS;
-        int maxZ = plotOrigin.z() + plotSize + LEGACY_TERRAIN_CLEANUP_RADIUS;
+        int radius = legacyTerrainCleanupRadius();
+        int minX = plotOrigin.x() - radius;
+        int maxX = plotOrigin.x() + plotSize + radius;
+        int minZ = plotOrigin.z() - radius;
+        int maxZ = plotOrigin.z() + plotSize + radius;
         int minY = level.getMinBuildHeight();
         int maxY = Math.min(level.getMaxBuildHeight() - 1, groundY + LEGACY_TERRAIN_CLEANUP_HEIGHT);
 

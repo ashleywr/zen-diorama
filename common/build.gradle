@@ -1,0 +1,25 @@
+plugins {
+    id 'java-library'
+}
+
+base {
+    archivesName = "${mod_id}-common-${mc_version}"
+}
+
+sourceSets {
+    main {
+        java.srcDir rootProject.file('src/main/java')
+        resources.srcDir rootProject.file('src/main/resources')
+    }
+    test {
+        java.srcDir rootProject.file('src/test/java')
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    enabled = false
+}
+
+tasks.withType(Test).configureEach {
+    enabled = false
+}

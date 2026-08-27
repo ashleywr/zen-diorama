@@ -39,6 +39,10 @@ public class WorldMapBlock extends BaseEntityBlock {
         registerDefaultState(stateDefinition.any().setValue(FACING, Direction.UP));
     }
 
+    private static Component tr(String key, String fallback, Object... args) {
+        return Component.translatableWithFallback(key, fallback, args);
+    }
+
     @Override
     protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) {
         builder.add(FACING);
@@ -105,8 +109,11 @@ public class WorldMapBlock extends BaseEntityBlock {
         BlockEntity be = level.getBlockEntity(pos);
         if (!(be instanceof WorldMapBlockEntity mapBe)) return InteractionResult.PASS;
         if (!mapBe.isLayoutValid()) {
-            player.sendSystemMessage(Component.literal(
-                    "Reconnect this map into a full square group: " + allowedGroupSummary() + "."));
+            player.sendSystemMessage(tr(
+                    "message.zen_diorama.map.invalid_layout",
+                    "Reconnect this map into a full square group: %s.",
+                    allowedGroupSummary()
+            ));
             return InteractionResult.SUCCESS;
         }
 
@@ -130,31 +137,44 @@ public class WorldMapBlock extends BaseEntityBlock {
                     : WorldMapZoomTuning.resolve(zoom, group.width(), group.height());
             WorldMapBlockEntity.reZoomConnected(level, pos, newZoom);
             int effectiveVoxels = Math.min(tuned.voxels(), WorldMapBlockEntity.MAX_SAMPLER_RESOLUTION);
-            player.sendSystemMessage(Component.literal(
-                    "Zoom [" + (newZoom + 1) + "/" + WorldMapZoomLevel.LEVELS.size() + "]  "
-                    + zoom.name() + "  — " + tuned.scale() + " blocks / " + voxelSummary(tuned.voxels())
-                    + " per tile on " + groupLabel(group)
-                    + "  (" + samplingSummary(tuned.scale(), effectiveVoxels) + ")"));
+            player.sendSystemMessage(tr(
+                    "message.zen_diorama.map.zoom",
+                    "Zoom [%s/%s]  %s  - %s blocks / %s per tile on %s  (%s)",
+                    newZoom + 1,
+                    WorldMapZoomLevel.LEVELS.size(),
+                    zoom.displayName(),
+                    tuned.scale(),
+                    voxelSummary(tuned.voxels()),
+                    groupLabel(group),
+                    samplingSummary(tuned.scale(), effectiveVoxels)
+            ));
             return InteractionResult.SUCCESS;
         }
 
         // Right-click → refresh current map settings without changing zoom.
         WorldMapBlockEntity.forceRefreshConnected(level, pos);
-        player.sendSystemMessage(Component.literal("Queued refresh for connected world map tiles."));
+        player.sendSystemMessage(Component.translatable("message.zen_diorama.map.refresh"));
         return InteractionResult.SUCCESS;
     }
 
-    private static String samplingSummary(int scale, int voxels) {
-        if (scale <= voxels) return "every block sampled";
-        return "1 voxel per " + (scale / voxels) + " blocks";
+    private static Component samplingSummary(int scale, int voxels) {
+        if (scale <= voxels) {
+            return tr("message.zen_diorama.map.sampling.every_block", "every block sampled");
+        }
+        return tr("message.zen_diorama.map.sampling.per_blocks", "1 voxel per %s blocks", scale / voxels);
     }
 
-    private static String voxelSummary(int requestedVoxels) {
+    private static Component voxelSummary(int requestedVoxels) {
         int effectiveVoxels = Math.min(requestedVoxels, WorldMapBlockEntity.MAX_SAMPLER_RESOLUTION);
         if (effectiveVoxels == requestedVoxels) {
-            return requestedVoxels + " voxels";
+            return tr("message.zen_diorama.map.voxel_summary.exact", "%s voxels", requestedVoxels);
         }
-        return requestedVoxels + " voxels requested, " + effectiveVoxels + " effective";
+        return tr(
+                "message.zen_diorama.map.voxel_summary.capped",
+                "%s voxels requested, %s effective",
+                requestedVoxels,
+                effectiveVoxels
+        );
     }
 
     private static String groupLabel(@Nullable WorldMapBlockEntity.ConnectedGroup group) {

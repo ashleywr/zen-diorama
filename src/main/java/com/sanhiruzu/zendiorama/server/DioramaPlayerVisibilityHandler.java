@@ -1,94 +1,82 @@
 package com.sanhiruzu.zendiorama.server;
 
-import com.sanhiruzu.zendiorama.world.DioramaDimensions;
 import com.sanhiruzu.zendiorama.DioramaConfig;
 import com.sanhiruzu.zendiorama.ZenDiorama;
 import com.sanhiruzu.zendiorama.block.DioramaFrameBlockEntity;
 import com.sanhiruzu.zendiorama.core.PlotOrigin;
+import com.sanhiruzu.zendiorama.world.DioramaDimensions;
 import net.minecraft.core.BlockPos;
-import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.world.entity.MobSpawnType;
-import net.neoforged.bus.api.SubscribeEvent;
-import net.neoforged.neoforge.event.entity.living.MobSpawnEvent;
-import net.neoforged.neoforge.event.entity.player.PlayerEvent;
-import net.neoforged.neoforge.event.level.BlockEvent;
-import net.neoforged.neoforge.event.tick.PlayerTickEvent;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.MobSpawnType;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.state.BlockState;
+
 import java.util.UUID;
 
 public final class DioramaPlayerVisibilityHandler {
     private DioramaPlayerVisibilityHandler() {
     }
 
-    @SubscribeEvent
-    public static void onPlayerTick(PlayerTickEvent.Post event) {
-        if (event.getEntity() instanceof ServerPlayer player && !player.level().isClientSide) {
-            boolean inDiorama = player.level().dimension().equals(DioramaDimensions.DIORAMA_LEVEL);
-            if (player.isInvisible() != inDiorama) {
-                player.setInvisible(inDiorama);
-            }
-            if (inDiorama && player.level() instanceof ServerLevel dioramaLevel) {
-                syncDioramaTimeToReturnLevel(player, dioramaLevel);
-                refreshReturnedFrameSnapshotIfReady(player, dioramaLevel);
-            }
+    public static void onPlayerTick(ServerPlayer player) {
+        if (player.level().isClientSide) {
+            return;
+        }
+
+        boolean inDiorama = player.level().dimension().equals(DioramaDimensions.DIORAMA_LEVEL);
+        if (player.isInvisible() != inDiorama) {
+            player.setInvisible(inDiorama);
+        }
+        if (inDiorama && player.level() instanceof ServerLevel dioramaLevel) {
+            syncDioramaTimeToReturnLevel(player, dioramaLevel);
+            refreshReturnedFrameSnapshotIfReady(player, dioramaLevel);
         }
     }
 
-    @SubscribeEvent
-    public static void onPlayerDimensionChanged(PlayerEvent.PlayerChangedDimensionEvent event) {
-        if (event.getEntity() instanceof ServerPlayer player) {
-            if (event.getFrom().equals(DioramaDimensions.DIORAMA_LEVEL) && !event.getTo().equals(DioramaDimensions.DIORAMA_LEVEL)) {
-                releaseForcedChunksIfLastOccupant(player);
-            }
-            boolean inDiorama = event.getTo().equals(DioramaDimensions.DIORAMA_LEVEL);
-            if (player.isInvisible() != inDiorama) {
-                player.setInvisible(inDiorama);
-            }
+    public static void onPlayerDimensionChanged(ServerPlayer player, ResourceKey<Level> from, ResourceKey<Level> to) {
+        if (from.equals(DioramaDimensions.DIORAMA_LEVEL) && !to.equals(DioramaDimensions.DIORAMA_LEVEL)) {
+            releaseForcedChunksIfLastOccupant(player);
+        }
+
+        boolean inDiorama = to.equals(DioramaDimensions.DIORAMA_LEVEL);
+        if (player.isInvisible() != inDiorama) {
+            player.setInvisible(inDiorama);
         }
     }
 
-    @SubscribeEvent
-    public static void onPlayerLoggedOut(PlayerEvent.PlayerLoggedOutEvent event) {
-        if (event.getEntity() instanceof ServerPlayer player
-                && player.level().dimension().equals(DioramaDimensions.DIORAMA_LEVEL)) {
+    public static void onPlayerLoggedOut(ServerPlayer player) {
+        if (player.level().dimension().equals(DioramaDimensions.DIORAMA_LEVEL)) {
             releaseForcedChunksIfLastOccupant(player);
         }
     }
 
-    @SubscribeEvent
-    public static void onSpawnPlacementCheck(MobSpawnEvent.SpawnPlacementCheck event) {
-        if (event.getSpawnType() == MobSpawnType.NATURAL
-                && event.getLevel().getLevel().dimension().equals(DioramaDimensions.DIORAMA_LEVEL)) {
-            event.setResult(MobSpawnEvent.SpawnPlacementCheck.Result.FAIL);
-        }
+    public static boolean allowSpawn(ServerLevel level, MobSpawnType spawnType) {
+        return spawnType != MobSpawnType.NATURAL || !level.dimension().equals(DioramaDimensions.DIORAMA_LEVEL);
     }
 
-    @SubscribeEvent
-    public static void onBlockPlaced(BlockEvent.EntityPlaceEvent event) {
-        if (event.getEntity() instanceof ServerPlayer player
-                && player.level().dimension().equals(DioramaDimensions.DIORAMA_LEVEL)) {
-            if (event.getPlacedBlock().is(ZenDiorama.DIORAMA_FRAME.get())
-                    || isOutsideReturnedPlot(player, event.getPos())) {
-                event.setCanceled(true);
-                return;
+    public static boolean allowBlockPlace(ServerPlayer player, BlockPos pos, Block block) {
+        if (player.level().dimension().equals(DioramaDimensions.DIORAMA_LEVEL)) {
+            if (block == ZenDiorama.DIORAMA_FRAME.get() || isOutsideReturnedPlot(player, pos)) {
+                return false;
             }
             markReturnedFrameDirty(player);
         }
+        return true;
     }
 
-    @SubscribeEvent
-    public static void onBlockBroken(BlockEvent.BreakEvent event) {
-        if (event.getPlayer() instanceof ServerPlayer player
-                && player.level().dimension().equals(DioramaDimensions.DIORAMA_LEVEL)) {
-            if (isOutsideReturnedPlot(player, event.getPos())
-                    || event.getState().is(ZenDiorama.DIORAMA_EXIT.get())
-                    || event.getState().is(ZenDiorama.DIORAMA_CONTROL.get())) {
-                event.setCanceled(true);
-                return;
+    public static boolean allowBlockBreak(ServerPlayer player, BlockPos pos, BlockState state) {
+        if (player.level().dimension().equals(DioramaDimensions.DIORAMA_LEVEL)) {
+            if (isOutsideReturnedPlot(player, pos)
+                    || state.is(ZenDiorama.DIORAMA_EXIT.get())
+                    || state.is(ZenDiorama.DIORAMA_CONTROL.get())) {
+                return false;
             }
             markReturnedFrameDirty(player);
         }
+        return true;
     }
 
     private static void syncDioramaTimeToReturnLevel(ServerPlayer player, ServerLevel dioramaLevel) {
@@ -144,8 +132,7 @@ public final class DioramaPlayerVisibilityHandler {
         }
 
         DioramaFrameBlockEntity frame = getReturnedFrame(player);
-        if (frame != null
-                && frame.shouldRefreshSnapshot(dioramaLevel.getGameTime())) {
+        if (frame != null && frame.shouldRefreshSnapshot(dioramaLevel.getGameTime())) {
             frame.refreshSnapshotFromInterior(dioramaLevel);
         }
     }

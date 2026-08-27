@@ -4,10 +4,9 @@ import com.sanhiruzu.zendiorama.DioramaConfig;
 import com.sanhiruzu.zendiorama.ZenDiorama;
 import com.sanhiruzu.zendiorama.core.MiniatureSnapshot;
 import com.sanhiruzu.zendiorama.core.SurfaceSampler;
+import com.sanhiruzu.zendiorama.network.WorldMapSnapshotRequestPayload;
 import com.sanhiruzu.zendiorama.network.WorldMapSnapshotPayload;
-import net.neoforged.api.distmarker.Dist;
-import net.neoforged.fml.loading.FMLEnvironment;
-import net.neoforged.neoforge.network.PacketDistributor;
+import com.sanhiruzu.zendiorama.platform.DioramaServices;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.HolderLookup;
@@ -21,7 +20,6 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
@@ -40,6 +38,8 @@ import java.util.function.Consumer;
 public class WorldMapBlockEntity extends BlockEntity {
     public static final int MAX_SAMPLER_RESOLUTION = 512;
     private static final int SNAPSHOT_REFRESH_PHASES = 20;
+    /** Client-side floor between snapshot requests for one tile. */
+    private static final long SNAPSHOT_REQUEST_COOLDOWN_MILLIS = 2000L;
     private boolean configured;
     private boolean layoutValid = true;
     private boolean layoutSevereInvalid;
@@ -76,6 +76,10 @@ public class WorldMapBlockEntity extends BlockEntity {
     public transient Object renderCache;
     private transient MiniatureSnapshot sampledGridSnapshot;
     private transient int sampledGridSize = 1;
+    /** Client-only: earliest wall-clock time another WorldMapSnapshotRequestPayload may be sent for
+     *  this tile. Rate-limits the request so a burst of block-entity update packets cannot turn into
+     *  a burst of requests, while still recovering if a request goes unanswered. */
+    private transient long nextSnapshotRequestMillis;
 
     public WorldMapBlockEntity(BlockPos pos, BlockState state) {
         super(ZenDiorama.WORLD_MAP_ENTITY.get(), pos, state);
@@ -370,20 +374,25 @@ public class WorldMapBlockEntity extends BlockEntity {
             net.minecraft.network.protocol.Packet<?> bePkt = getUpdatePacket();
             WorldMapSnapshotPayload payload = new WorldMapSnapshotPayload(
                     worldPosition.immutable(), this.snapshot);
-            ChunkPos chunkPos = new ChunkPos(worldPosition);
-            for (ServerPlayer sp : ((ServerLevel) level).getChunkSource().chunkMap.getPlayers(chunkPos, false)) {
+            for (ServerPlayer sp : DioramaServices.platform().trackingPlayers((ServerLevel) level, worldPosition)) {
                 if (bePkt != null) sp.connection.send(bePkt);
-                PacketDistributor.sendToPlayer(sp, payload);
+                DioramaServices.platform().sendToPlayer(sp, payload);
             }
         }
     }
 
     /** Sets the snapshot on the client side after receiving a {@link WorldMapSnapshotPayload}. */
     public void setSnapshot(MiniatureSnapshot snapshot) {
-        this.snapshot = snapshot;
         this.dirty = false;
         this.waitingForChunks = false;
         this.refreshImmediately = false;
+        // Re-delivering the same snapshot (chunk re-send, group re-sync, a second reply to an
+        // in-flight request) must not throw away the baked GPU mesh: dropping renderCache leaves
+        // the renderer with nothing to draw until the async re-bake lands, which reads as a flicker.
+        if (snapshot.equals(this.snapshot)) {
+            return;
+        }
+        this.snapshot = snapshot;
         this.snapshotVersion++;
         this.sampledGridSnapshot = null;
         if (renderCache instanceof AutoCloseable closeable) {
@@ -843,10 +852,8 @@ public class WorldMapBlockEntity extends BlockEntity {
         styleIndex = tag.contains("StyleIndex") ? tag.getInt("StyleIndex") : 1;
         samplerResolution = tag.contains("SamplerResolution") ? tag.getInt("SamplerResolution") : 0;
         // When loading from disk, saveAdditional always writes Dirty=true so the server re-samples
-        // on restart. When receiving a ClientboundBlockEntityDataPacket (NeoForge routes these
-        // through loadAdditional via onDataPacket, not handleUpdateTag), the tag comes from
-        // getUpdateTag() which writes the real runtime dirty value. Reading from the tag handles
-        // both cases correctly without NeoForge's handleUpdateTag bypass breaking the client state.
+        // on restart. Runtime update packets send getUpdateTag() with the real dirty flag, so
+        // reading the value here keeps both cases in sync without loader-specific hooks.
         dirty = tag.getBoolean("Dirty");
         // Set lastDirtyTime so gap = gameTime - lastDirtyTime always exceeds the debounce on the
         // first serverTick after load, even on a brand-new world where gameTime is still small.
@@ -859,10 +866,28 @@ public class WorldMapBlockEntity extends BlockEntity {
         presentationTilesTall = Math.max(1, tag.contains("PresentationTilesTall") ? tag.getInt("PresentationTilesTall") : 1);
         // On the client, a WorldMapSnapshotPayload can arrive before the chunk packet delivers the
         // block entity. DioramaClientPayloadHandler caches such early snapshots; claim it now.
-        if (FMLEnvironment.dist == Dist.CLIENT) {
+        //
+        // level.isClientSide (not FMLEnvironment.dist) is the right test: on a single-player client
+        // the integrated server loads block entities in the same JVM, and asking "is this a client
+        // *installation*" made the server copy fire a client->server request too.
+        //
+        // loadAdditional also runs for every ClientboundBlockEntityDataPacket. Requesting a snapshot
+        // unconditionally there was self-sustaining: the server answers a request with getUpdatePacket()
+        // *plus* the payload, the update packet re-enters loadAdditional, which requests again. Each
+        // reply reset renderCache, so the map blinked continuously. Only ask when we have nothing
+        // to draw yet.
+        if (level != null && level.isClientSide()) {
             MiniatureSnapshot pending = com.sanhiruzu.zendiorama.client.DioramaClientPayloadHandler
                     .takePendingSnapshot(worldPosition);
-            if (pending != null) setSnapshot(pending);
+            if (pending != null) {
+                setSnapshot(pending);
+            } else if (configured && snapshot.entries().isEmpty()) {
+                long now = System.currentTimeMillis();
+                if (now >= nextSnapshotRequestMillis) {
+                    nextSnapshotRequestMillis = now + SNAPSHOT_REQUEST_COOLDOWN_MILLIS;
+                    DioramaServices.platform().sendToServer(new WorldMapSnapshotRequestPayload(worldPosition));
+                }
+            }
         }
     }
 
@@ -877,9 +902,8 @@ public class WorldMapBlockEntity extends BlockEntity {
         return tag;
     }
 
-    // Note: NeoForge routes ClientboundBlockEntityDataPacket through onDataPacket →
-    // loadWithComponents → loadAdditional, NOT through handleUpdateTag. The dirty flag is
-    // therefore read directly in loadAdditional; no override is needed here.
+    // ClientboundBlockEntityDataPacket data is consumed in loadAdditional, so no
+    // handleUpdateTag override is needed here.
 
     @Nullable
     @Override

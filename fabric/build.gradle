@@ -1,0 +1,57 @@
+plugins {
+    id 'java-library'
+    id 'fabric-loom' version "${fabric_loom_version}"
+}
+
+base {
+    archivesName = "${mod_id}-fabric-${mc_version}"
+}
+
+sourceSets {
+    main {
+        java {
+            srcDir rootProject.file('src/main/java')
+        }
+        resources {
+            srcDir rootProject.file('src/main/resources')
+        }
+    }
+}
+
+loom {
+    runs {
+        client {
+            client()
+            runDir = '../run/fabric-client'
+        }
+        server {
+            server()
+            runDir = '../run/fabric-server'
+        }
+    }
+}
+
+dependencies {
+    minecraft "com.mojang:minecraft:${mc_version}"
+    mappings loom.officialMojangMappings()
+    modImplementation "net.fabricmc:fabric-loader:${fabric_loader_version}"
+    modImplementation "net.fabricmc.fabric-api:fabric-api:${fabric_api_version}"
+}
+
+def fabricResourceProperties = [
+        version        : project.version,
+        mod_id         : mod_id,
+        mod_name       : mod_name,
+        mod_description: mod_description,
+        fabric_loader_version: fabric_loader_version,
+        java_version   : java_version,
+        mc_version     : mc_version
+]
+
+processResources {
+    inputs.properties fabricResourceProperties
+
+    filesMatching('fabric.mod.json') {
+        expand fabricResourceProperties
+    }
+}

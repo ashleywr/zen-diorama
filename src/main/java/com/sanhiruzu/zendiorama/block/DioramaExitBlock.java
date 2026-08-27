@@ -2,6 +2,7 @@ package com.sanhiruzu.zendiorama.block;
 
 import com.sanhiruzu.zendiorama.server.DioramaReturnData;
 import com.sanhiruzu.zendiorama.network.DioramaTransitionPayload;
+import com.sanhiruzu.zendiorama.platform.DioramaServices;
 import com.sanhiruzu.zendiorama.server.DioramaPlotSavedData;
 import com.mojang.serialization.MapCodec;
 import net.minecraft.core.BlockPos;
@@ -19,7 +20,6 @@ import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.phys.BlockHitResult;
-import net.neoforged.neoforge.network.PacketDistributor;
 import java.util.UUID;
 
 public class DioramaExitBlock extends Block {
@@ -74,7 +74,7 @@ public class DioramaExitBlock extends Block {
             frame.setPlotChunksForced((ServerLevel) level, false);
         }
         level.playSound(null, pos, SoundEvents.ENDERMAN_TELEPORT, SoundSource.BLOCKS, 0.7F, 0.75F);
-        PacketDistributor.sendToPlayer(serverPlayer, new DioramaTransitionPayload(false, null));
+        DioramaServices.platform().sendToPlayer(serverPlayer, new DioramaTransitionPayload(false, null));
         BlockPos safeReturnPos = findSafeReturnPos(returnLevel, target, framePos);
         serverPlayer.teleportTo(returnLevel, safeReturnPos.getX() + 0.5D, safeReturnPos.getY(), safeReturnPos.getZ() + 0.5D, target.yaw(), target.pitch());
         returnLevel.playSound(null, framePos, SoundEvents.AMETHYST_BLOCK_CHIME, SoundSource.PLAYERS, 0.65F, 1.4F);

@@ -6,6 +6,7 @@
       "biome": "minecraft:forest",
       "features": false,
       "lakes": false,
+      "structure_overrides": [],
       "layers": [
         {
           "block": "minecraft:air",

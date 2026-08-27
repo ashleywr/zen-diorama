@@ -2,7 +2,6 @@ package com.sanhiruzu.zendiorama.server;
 
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.neoforged.neoforge.event.tick.ServerTickEvent;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -57,7 +56,7 @@ public final class DioramaPendingTeleports {
         }
     }
 
-    public static void onServerTick(ServerTickEvent.Post event) {
+    public static void onServerTick() {
         if (QUEUE.isEmpty()) return;
         QUEUE.removeIf(p -> {
             if (--p.ticksUntilTimeout <= 0) {

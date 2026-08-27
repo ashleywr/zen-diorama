@@ -13,13 +13,17 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
-import net.neoforged.neoforge.event.RegisterCommandsEvent;
+import com.mojang.brigadier.CommandDispatcher;
 
 public final class WorldMapCommand {
     private WorldMapCommand() {}
 
-    public static void onRegisterCommands(RegisterCommandsEvent event) {
-        event.getDispatcher().register(
+    private static Component tr(String key, String fallback, Object... args) {
+        return Component.translatableWithFallback(key, fallback, args);
+    }
+
+    public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
+        dispatcher.register(
             Commands.literal("zdmap")
                 .requires(src -> src.hasPermission(2))
                 .executes(WorldMapCommand::info)
@@ -55,11 +59,14 @@ public final class WorldMapCommand {
                 t -> t.applyZoom(-1, voxels));  // -1 = custom (not a preset zoom level)
         WorldMapBlockEntity.forceRefreshConnected(wme.getLevel(), wme.getBlockPos());
         int effectiveVoxels = Math.min(voxels, WorldMapBlockEntity.MAX_SAMPLER_RESOLUTION);
-        String sampling = scale <= effectiveVoxels
-                ? "every block sampled"
-                : "1 voxel per " + (scale / effectiveVoxels) + " blocks";
-        ctx.getSource().sendSuccess(() -> Component.literal(
-                "Settings → " + voxelSummary(voxels) + "  scale=" + scale + " blocks/tile  (" + sampling + ")"), false);
+        Component sampling = samplingSummary(scale, effectiveVoxels);
+        ctx.getSource().sendSuccess(() -> tr(
+                "command.zen_diorama.map.settings",
+                "Settings -> %s  scale=%s blocks/tile  (%s)",
+                voxelSummary(voxels),
+                scale,
+                sampling
+        ), false);
         return 1;
     }
 
@@ -73,7 +80,7 @@ public final class WorldMapCommand {
             }
         }
         throw new com.mojang.brigadier.exceptions.SimpleCommandExceptionType(
-            Component.literal("Look at a World Map block first.")).create();
+            tr("command.zen_diorama.map.error.look_at_map", "Look at a World Map block first.")).create();
     }
 
     private static int setHeight(CommandContext<CommandSourceStack> ctx, double value)
@@ -83,7 +90,7 @@ public final class WorldMapCommand {
         WorldMapBlockEntity.applyToConnected(wme.getLevel(), wme.getBlockPos(),
                 t -> t.setHeightExaggeration(v));
         WorldMapBlockEntity.forceRefreshConnected(wme.getLevel(), wme.getBlockPos());
-        ctx.getSource().sendSuccess(() -> Component.literal("Height → " + value + " (all connected tiles)"), false);
+        ctx.getSource().sendSuccess(() -> tr("command.zen_diorama.map.height", "Height -> %s (all connected tiles)", value), false);
         return 1;
     }
 
@@ -94,7 +101,7 @@ public final class WorldMapCommand {
         WorldMapBlockEntity.applyToConnected(wme.getLevel(), wme.getBlockPos(),
                 t -> t.setElevationTint(v));
         WorldMapBlockEntity.forceRefreshConnected(wme.getLevel(), wme.getBlockPos());
-        ctx.getSource().sendSuccess(() -> Component.literal("Tint → " + value + " (all connected tiles)"), false);
+        ctx.getSource().sendSuccess(() -> tr("command.zen_diorama.map.tint", "Tint -> %s (all connected tiles)", value), false);
         return 1;
     }
 
@@ -104,8 +111,12 @@ public final class WorldMapCommand {
         WorldMapBlockEntity wme = getTargetedMap(ctx);
         WorldMapBlockEntity.forceRefreshConnected(wme.getLevel(), wme.getBlockPos());
         int effectiveVoxels = Math.min(count, WorldMapBlockEntity.MAX_SAMPLER_RESOLUTION);
-        ctx.getSource().sendSuccess(() -> Component.literal(
-            "Voxels → " + voxelSummary(count) + " (1:1 sampling up to scale " + effectiveVoxels + "). Refreshing…"), false);
+        ctx.getSource().sendSuccess(() -> tr(
+                "command.zen_diorama.map.voxels",
+                "Voxels -> %s (1:1 sampling up to scale %s). Refreshing...",
+                voxelSummary(count),
+                effectiveVoxels
+        ), false);
         return 1;
     }
 
@@ -113,7 +124,7 @@ public final class WorldMapCommand {
             throws com.mojang.brigadier.exceptions.CommandSyntaxException {
         WorldMapBlockEntity wme = getTargetedMap(ctx);
         WorldMapBlockEntity.forceRefreshConnected(wme.getLevel(), wme.getBlockPos());
-        ctx.getSource().sendSuccess(() -> Component.literal("Queued refresh for all connected map tiles."), false);
+        ctx.getSource().sendSuccess(() -> tr("command.zen_diorama.map.refresh", "Queued refresh for all connected map tiles."), false);
         return 1;
     }
 
@@ -125,9 +136,12 @@ public final class WorldMapCommand {
             t.resetElevationTint();
         });
         WorldMapBlockEntity.forceRefreshConnected(wme.getLevel(), wme.getBlockPos());
-        ctx.getSource().sendSuccess(() -> Component.literal(
-            "Reset to config defaults — height=" + DioramaConfig.MAP_HEIGHT_EXAGGERATION.get()
-            + ", tint=" + DioramaConfig.MAP_ELEVATION_TINT.get() + " (all connected tiles)."), false);
+        ctx.getSource().sendSuccess(() -> tr(
+                "command.zen_diorama.map.reset",
+                "Reset to config defaults - height=%s, tint=%s (all connected tiles).",
+                DioramaConfig.MAP_HEIGHT_EXAGGERATION.get(),
+                DioramaConfig.MAP_ELEVATION_TINT.get()
+        ), false);
         return 1;
     }
 
@@ -138,38 +152,65 @@ public final class WorldMapCommand {
         int voxels = wme.getSamplerResolution();
         int effectiveVoxels = wme.getEffectiveSamplerResolution();
         int actual = wme.getSampledGridSize();
-        String sampling = scale <= effectiveVoxels
-            ? "every block sampled"
-            : "1 voxel per " + (scale / effectiveVoxels) + " blocks";
+        Component sampling = samplingSummary(scale, effectiveVoxels);
         WorldMapBlockEntity.ConnectedGroup group = WorldMapBlockEntity.collectConnectedGroup(
                 wme.getLevel(), wme.getBlockPos());
-        String zoomLine;
+        Component zoomLine;
         if (wme.getZoomIndex() >= 0 && wme.getZoomIndex() < WorldMapZoomLevel.LEVELS.size() && group != null) {
             WorldMapZoomLevel zoom = WorldMapZoomLevel.LEVELS.get(wme.getZoomIndex());
             WorldMapZoomTuning.EffectiveZoom tuned = WorldMapZoomTuning.resolve(zoom, group.width(), group.height());
-            zoomLine = "[" + (wme.getZoomIndex() + 1) + "/" + WorldMapZoomLevel.LEVELS.size() + "]  "
-                    + zoom.name() + "  (" + tuned.scale() + " blocks / " + voxelSummary(tuned.voxels())
-                    + " per tile on " + group.width() + "x" + group.height() + ")";
+            zoomLine = tr(
+                    "command.zen_diorama.map.info.zoom.preset",
+                    "[%s/%s]  %s  (%s blocks / %s per tile on %sx%s)",
+                    wme.getZoomIndex() + 1,
+                    WorldMapZoomLevel.LEVELS.size(),
+                    zoom.displayName(),
+                    tuned.scale(),
+                    voxelSummary(tuned.voxels()),
+                    group.width(),
+                    group.height()
+            );
         } else {
-            zoomLine = "[custom]  " + scale + " blocks / " + voxelSummary(voxels);
+            zoomLine = tr("command.zen_diorama.map.info.zoom.custom", "[custom]  %s blocks / %s", scale, voxelSummary(voxels));
         }
         com.sanhiruzu.zendiorama.block.WorldMapPreset style =
             com.sanhiruzu.zendiorama.block.WorldMapPreset.PRESETS.get(wme.getStyleIndex());
-        ctx.getSource().sendSuccess(() -> Component.literal(
-            "World Map @ " + wme.getBlockPos().toShortString()
-            + "\n  zoom:    " + zoomLine
-            + "\n  style:   [" + (wme.getStyleIndex() + 1) + "/" + com.sanhiruzu.zendiorama.block.WorldMapPreset.PRESETS.size() + "]  " + style.name() + "  (height " + style.height() + "  tint " + style.tint() + ")"
-            + "\n  sampled: " + actual + "×" + actual + "  (" + sampling + ")"
-            + "\n  height:  " + wme.getEffectiveHeightExaggeration()
-            + "\n  tint:    " + wme.getEffectiveElevationTint()), false);
+        ctx.getSource().sendSuccess(() -> tr(
+                "command.zen_diorama.map.info",
+                "World Map @ %s\n  zoom:    %s\n  style:   [%s/%s]  %s  (height %s  tint %s)\n  sampled: %sx%s  (%s)\n  height:  %s\n  tint:    %s",
+                wme.getBlockPos().toShortString(),
+                zoomLine,
+                wme.getStyleIndex() + 1,
+                com.sanhiruzu.zendiorama.block.WorldMapPreset.PRESETS.size(),
+                style.displayName(),
+                style.height(),
+                style.tint(),
+                actual,
+                actual,
+                sampling,
+                wme.getEffectiveHeightExaggeration(),
+                wme.getEffectiveElevationTint()
+        ), false);
         return 1;
     }
 
-    private static String voxelSummary(int requestedVoxels) {
+    private static Component samplingSummary(int scale, int voxels) {
+        if (scale <= voxels) {
+            return tr("command.zen_diorama.map.sampling.every_block", "every block sampled");
+        }
+        return tr("command.zen_diorama.map.sampling.per_blocks", "1 voxel per %s blocks", scale / voxels);
+    }
+
+    private static Component voxelSummary(int requestedVoxels) {
         int effectiveVoxels = Math.min(requestedVoxels, WorldMapBlockEntity.MAX_SAMPLER_RESOLUTION);
         if (effectiveVoxels == requestedVoxels) {
-            return requestedVoxels + " voxels";
+            return tr("command.zen_diorama.map.voxel_summary.exact", "%s voxels", requestedVoxels);
         }
-        return requestedVoxels + " voxels requested, " + effectiveVoxels + " effective";
+        return tr(
+                "command.zen_diorama.map.voxel_summary.capped",
+                "%s voxels requested, %s effective",
+                requestedVoxels,
+                effectiveVoxels
+        );
     }
 }

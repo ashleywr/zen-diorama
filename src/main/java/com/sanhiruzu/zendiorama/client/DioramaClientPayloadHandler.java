@@ -6,9 +6,9 @@ import com.sanhiruzu.zendiorama.network.DioramaCaptureReadyPayload;
 import com.sanhiruzu.zendiorama.network.DioramaSkySnapshotPayload;
 import com.sanhiruzu.zendiorama.network.DioramaTransitionPayload;
 import com.sanhiruzu.zendiorama.network.WorldMapSnapshotPayload;
+import com.sanhiruzu.zendiorama.platform.DioramaServices;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
-import net.neoforged.neoforge.network.PacketDistributor;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -51,9 +51,10 @@ public final class DioramaClientPayloadHandler {
         if (payload.entering() && p != null) {
             // Capture the 6 faces over the next frames via the normal pipeline (camera at block center),
             // then ack the server so it teleports us in. The capture frames are hidden by the overlay.
-            DioramaOffscreenCubemap.beginCapture(
+            DioramaSkyboxRenderer.resetDiagnostic();
+            DioramaServices.platform().beginEntryCubemapCapture(
                     p.getX() + 0.5D, p.getY() + 0.5D, p.getZ() + 0.5D,
-                    () -> PacketDistributor.sendToServer(new DioramaCaptureReadyPayload()));
+                    () -> DioramaServices.platform().sendToServer(new DioramaCaptureReadyPayload()));
             DioramaHudOverlay.beginTransition(true);
         } else {
             DioramaHudOverlay.beginTransition(payload.entering());

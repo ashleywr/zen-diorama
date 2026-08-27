@@ -8,6 +8,8 @@ import net.minecraft.client.Screenshot;
 import net.minecraft.util.FastColor;
 import net.minecraft.util.Mth;
 import net.minecraft.world.phys.Vec3;
+import com.sanhiruzu.zendiorama.ZenDiorama;
+import net.neoforged.neoforge.client.event.ClientTickEvent;
 import net.neoforged.neoforge.client.event.RenderGuiEvent;
 import net.neoforged.neoforge.client.event.RenderHandEvent;
 import net.neoforged.neoforge.client.event.ViewportEvent;
@@ -29,8 +31,16 @@ public final class DioramaOffscreenCubemap {
     private static final float[] FACE_YAWS   = { 180f, 0f, 270f, 90f, 180f, 180f };
     private static final float[] FACE_PITCHES = {   0f, 0f,   0f,  0f,  -90f,  90f };
 
+    /** Client ticks a capture may stay open before it is abandoned. Six faces normally take six
+     *  rendered frames; anything past a couple of seconds means the grab hook is never firing
+     *  (another mod cancelling RenderGuiEvent.Pre, no GUI pass, a stuck screen). Without this the
+     *  capture would stay {@code active} forever, which keeps the opaque cover on screen and
+     *  suppresses every miniature. */
+    private static final int CAPTURE_TIMEOUT_TICKS = 60;
+
     private static boolean active = false;
     private static int nextFace = 0;
+    private static int ticksActive = 0;
     private static final NativeImage[] captured = new NativeImage[6];
     private static Runnable onComplete = null;
     private static double camX, camY, camZ;
@@ -54,9 +64,45 @@ public final class DioramaOffscreenCubemap {
         camY = frameCenterY;
         camZ = frameCenterZ;
         nextFace = 0;
+        ticksActive = 0;
         onComplete = afterCapture;
         active = true;
         DioramaFrameRenderer.suppressMiniature = true;
+        ZenDiorama.LOGGER.info("[zen_diorama] cubemap capture started at {} {} {}",
+                frameCenterX, frameCenterY, frameCenterZ);
+    }
+
+    /** Watchdog: abandons a capture whose faces stopped arriving so the screen cover is released. */
+    public static void onClientTick(ClientTickEvent.Post event) {
+        if (!active) {
+            return;
+        }
+        if (++ticksActive < CAPTURE_TIMEOUT_TICKS) {
+            return;
+        }
+        ZenDiorama.LOGGER.warn(
+                "[zen_diorama] cubemap capture timed out after {} ticks with {}/6 faces - "
+                        + "RenderGuiEvent.Pre is not reaching the capture hook. Falling back to the flat sky.",
+                ticksActive, nextFace);
+        abort();
+    }
+
+    private static void abort() {
+        active = false;
+        ticksActive = 0;
+        nextFace = 6;
+        DioramaFrameRenderer.suppressMiniature = false;
+        for (int i = 0; i < 6; i++) {
+            if (captured[i] != null) {
+                captured[i].close();
+                captured[i] = null;
+            }
+        }
+        if (onComplete != null) {
+            // Still ack the server, otherwise entry waits out the full teleport timeout.
+            onComplete.run();
+            onComplete = null;
+        }
     }
 
     public static boolean isActive() {
@@ -101,6 +147,7 @@ public final class DioramaOffscreenCubemap {
 
     private static void finish() {
         active = false;
+        ticksActive = 0;
         DioramaFrameRenderer.suppressMiniature = false;
 
         int blurPasses = DioramaConfig.SKYBOX_BLUR_RADIUS.get();
@@ -119,10 +166,41 @@ public final class DioramaOffscreenCubemap {
         for (int face = 0; face < 6; face++) {
             DioramaSkyboxTextures.upload(face, faces[face]);
         }
+        // Mean luminance per face separates "the capture never ran" from "the capture ran and the
+        // room really is that dark" - the two look identical in game.
+        ZenDiorama.LOGGER.info(
+                "[zen_diorama] cubemap capture complete, ready={}, mean face luminance N/S/E/W/U/D = {}",
+                DioramaSkyboxTextures.isReady(), describeLuminance(faces));
         if (onComplete != null) {
             onComplete.run();
             onComplete = null;
         }
+    }
+
+    private static String describeLuminance(NativeImage[] faces) {
+        StringBuilder out = new StringBuilder();
+        for (int face = 0; face < faces.length; face++) {
+            if (face > 0) {
+                out.append('/');
+            }
+            out.append(Math.round(meanLuminance(faces[face])));
+        }
+        return out.toString();
+    }
+
+    private static double meanLuminance(NativeImage image) {
+        long total = 0;
+        int w = image.getWidth();
+        int h = image.getHeight();
+        for (int y = 0; y < h; y++) {
+            for (int x = 0; x < w; x++) {
+                int abgr = image.getPixelRGBA(x, y);
+                total += (FastColor.ABGR32.red(abgr) * 30
+                        + FastColor.ABGR32.green(abgr) * 59
+                        + FastColor.ABGR32.blue(abgr) * 11) / 100;
+            }
+        }
+        return (double) total / Math.max(1, w * h);
     }
 
     private static void setCameraPosition(Camera camera, double x, double y, double z) {

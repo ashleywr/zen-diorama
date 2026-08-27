@@ -8,11 +8,15 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.Tesselator;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import net.minecraft.client.renderer.GameRenderer;
+import com.sanhiruzu.zendiorama.ZenDiorama;
 import net.minecraft.resources.ResourceLocation;
 import org.joml.Matrix4f;
 
+import java.util.concurrent.atomic.AtomicBoolean;
+
 public final class DioramaSkyboxRenderer {
     private static final float SIZE = 96.0F;
+    private static final AtomicBoolean DIAGNOSTIC_LOGGED = new AtomicBoolean();
 
     private DioramaSkyboxRenderer() {
     }
@@ -24,19 +28,36 @@ public final class DioramaSkyboxRenderer {
         RenderSystem.depthMask(false);
         RenderSystem.disableDepthTest();
         RenderSystem.disableCull();
+        // The sky is the first thing drawn in a frame, so it inherits whatever GL state the previous
+        // frame's last draw left behind. A stale ColorModulator (any mod's GUI or overlay pass) tints
+        // the whole cubemap - black modulator renders it invisible - and stale blending makes the
+        // faces translucent. Pin both, then hand the state back the way vanilla expects it.
+        RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
+        RenderSystem.disableBlend();
         RenderSystem.setShader(GameRenderer::getPositionTexShader);
 
         Matrix4f matrix = poseStack.last().pose();
 
-        if (DioramaSkyboxTextures.isReady()) {
+        boolean ready = DioramaSkyboxTextures.isReady();
+        if (DIAGNOSTIC_LOGGED.compareAndSet(false, true)) {
+            ZenDiorama.LOGGER.info(
+                    "[zen_diorama] diorama sky effects active; cubemap textures ready={}", ready);
+        }
+        if (ready) {
             renderTextured(matrix);
         } else {
             renderFallback(matrix);
         }
 
+        RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
         RenderSystem.enableDepthTest();
         RenderSystem.enableCull();
         RenderSystem.depthMask(true);
+    }
+
+    /** Resets the one-shot diagnostic so each dimension entry reports the texture state again. */
+    public static void resetDiagnostic() {
+        DIAGNOSTIC_LOGGED.set(false);
     }
 
     private static void renderTextured(Matrix4f matrix) {
