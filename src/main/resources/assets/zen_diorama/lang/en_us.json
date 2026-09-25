@@ -27,6 +27,8 @@
   "zen_diorama.configuration.mapMaxBlocks": "Map Max Blocks Per Tile",
   "block.zen_diorama.diorama_edge": "Diorama Edge",
   "block.zen_diorama.world_map": "World Map",
+  "block.zen_diorama.survey_pin": "Survey Pin",
+  "message.zen_diorama.survey_pin.color": "Survey Pin colour: %s",
   "message.zen_diorama.map.not_configured": "Sneak + right-click to set this tile's map center to your position.",
   "message.zen_diorama.map.configured": "Map centered at %s, %s. Adjacent unconfigured tiles have been linked.",
   "zen_diorama.configuration.title": "Zen Diorama Config",

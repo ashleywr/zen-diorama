@@ -172,6 +172,26 @@ public class WorldMapRenderer implements BlockEntityRenderer<WorldMapBlockEntity
                 overlay.draw(poseStack.last().pose(), brightness, lodSelection.overlayAlpha());
             }
         }
+        SurveyPinOverlay pinOverlay = blockEntity.surveyPinRenderCache instanceof SurveyPinOverlay overlay
+                ? overlay : null;
+        if (pinOverlay == null || !pinOverlay.matches(
+                blockEntity.getSurveyPins(),
+                blockEntity.getMapCenterX(),
+                blockEntity.getMapCenterZ(),
+                blockEntity.getBlocksPerTile(),
+                neighborMask)) {
+            if (pinOverlay != null) pinOverlay.close();
+            pinOverlay = SurveyPinOverlay.bake(
+                    blockEntity.getSurveyPins(),
+                    blockEntity.getMapCenterX(),
+                    blockEntity.getMapCenterZ(),
+                    blockEntity.getBlocksPerTile(),
+                    neighborMask);
+            blockEntity.surveyPinRenderCache = pinOverlay;
+        }
+        float markerPulse = 0.84F + 0.16F
+                * (float) Math.sin((System.currentTimeMillis() % 1600L) / 1600.0D * Math.PI * 2.0D);
+        pinOverlay.draw(poseStack.last().pose(), markerPulse);
     }
 
     private static WorldMapGeometry readyOrBuildGeometry(WorldMapLodCache cache, int targetIndex) {

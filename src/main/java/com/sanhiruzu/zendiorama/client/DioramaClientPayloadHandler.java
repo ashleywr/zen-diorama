@@ -19,11 +19,11 @@ public final class DioramaClientPayloadHandler {
 
     // Snapshots that arrived before the block entity existed on the client (chunk packet race).
     // Cleared when the level changes (handleLevelChange) to avoid stale entries across sessions.
-    private static final Map<BlockPos, MiniatureSnapshot> PENDING_SNAPSHOTS = new ConcurrentHashMap<>();
+    private static final Map<BlockPos, WorldMapSnapshotPayload> PENDING_SNAPSHOTS = new ConcurrentHashMap<>();
 
     /** Called by WorldMapBlockEntity.loadAdditional on the client to pick up any snapshot that
      *  arrived before the block entity was ready. */
-    public static MiniatureSnapshot takePendingSnapshot(BlockPos pos) {
+    public static WorldMapSnapshotPayload takePendingSnapshot(BlockPos pos) {
         return PENDING_SNAPSHOTS.remove(pos);
     }
 
@@ -35,10 +35,10 @@ public final class DioramaClientPayloadHandler {
     public static void handleWorldMapSnapshot(WorldMapSnapshotPayload payload) {
         net.minecraft.client.multiplayer.ClientLevel level = Minecraft.getInstance().level;
         if (level != null && level.getBlockEntity(payload.pos()) instanceof WorldMapBlockEntity wme) {
-            wme.setSnapshot(payload.snapshot());
+            wme.setSnapshot(payload.snapshot(), payload.surveyPins());
         } else {
             // Block entity not loaded yet — cache until loadAdditional fires on the client.
-            PENDING_SNAPSHOTS.put(payload.pos(), payload.snapshot());
+            PENDING_SNAPSHOTS.put(payload.pos(), payload);
         }
     }
 

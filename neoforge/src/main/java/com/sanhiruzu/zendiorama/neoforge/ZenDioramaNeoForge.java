@@ -120,6 +120,7 @@ public final class ZenDioramaNeoForge {
         if (event.getTabKey() == net.minecraft.world.item.CreativeModeTabs.FUNCTIONAL_BLOCKS) {
             event.accept(ZenDiorama.DIORAMA_FRAME_ITEM.get());
             event.accept(ZenDiorama.WORLD_MAP_ITEM.get());
+            event.accept(ZenDiorama.SURVEY_PIN_ITEM.get());
         }
     }
 

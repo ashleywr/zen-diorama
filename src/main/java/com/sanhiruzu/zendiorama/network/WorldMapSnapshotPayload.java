@@ -2,6 +2,7 @@ package com.sanhiruzu.zendiorama.network;
 
 import com.sanhiruzu.zendiorama.ZenDiorama;
 import com.sanhiruzu.zendiorama.core.MiniatureSnapshot;
+import com.sanhiruzu.zendiorama.core.SurveyPinMarker;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
@@ -17,8 +18,12 @@ import java.util.Map;
  * Carries a world-map surface snapshot from server to client via a custom binary payload,
  * bypassing the 2 MB NbtAccounter limit that applies to block-entity update packets.
  */
-public record WorldMapSnapshotPayload(BlockPos pos, MiniatureSnapshot snapshot)
+public record WorldMapSnapshotPayload(BlockPos pos, MiniatureSnapshot snapshot, List<SurveyPinMarker> surveyPins)
         implements CustomPacketPayload {
+
+    public WorldMapSnapshotPayload {
+        surveyPins = List.copyOf(surveyPins);
+    }
 
     public static final Type<WorldMapSnapshotPayload> TYPE = new Type<>(
             ResourceLocation.fromNamespaceAndPath(ZenDiorama.MOD_ID, "world_map_snapshot"));
@@ -64,6 +69,13 @@ public record WorldMapSnapshotPayload(BlockPos pos, MiniatureSnapshot snapshot)
         if (anyTint) {
             for (MiniatureSnapshot.Entry e : entries) buf.writeInt(e.tint());
         }
+
+        buf.writeVarInt(p.surveyPins().size());
+        for (SurveyPinMarker pin : p.surveyPins()) {
+            buf.writeVarInt(pin.worldX());
+            buf.writeVarInt(pin.worldZ());
+            buf.writeInt(pin.color());
+        }
     }
 
     private static WorldMapSnapshotPayload decode(RegistryFriendlyByteBuf buf) {
@@ -92,7 +104,12 @@ public record WorldMapSnapshotPayload(BlockPos pos, MiniatureSnapshot snapshot)
             entries.add(new MiniatureSnapshot.Entry(xs[i], ys[i], zs[i], id,
                     tints != null ? tints[i] : 0));
         }
-        return new WorldMapSnapshotPayload(pos, new MiniatureSnapshot(source, entries));
+        int pinCount = buf.readVarInt();
+        List<SurveyPinMarker> surveyPins = new ArrayList<>(pinCount);
+        for (int i = 0; i < pinCount; i++) {
+            surveyPins.add(new SurveyPinMarker(buf.readVarInt(), buf.readVarInt(), buf.readInt()));
+        }
+        return new WorldMapSnapshotPayload(pos, new MiniatureSnapshot(source, entries), surveyPins);
     }
 
     @Override

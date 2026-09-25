@@ -7,6 +7,8 @@ import com.sanhiruzu.zendiorama.block.DioramaExitBlock;
 import com.sanhiruzu.zendiorama.block.DioramaFrameBlock;
 import com.sanhiruzu.zendiorama.block.DioramaFrameBlockEntity;
 import com.sanhiruzu.zendiorama.block.DioramaFrameItem;
+import com.sanhiruzu.zendiorama.block.SurveyPinBlock;
+import com.sanhiruzu.zendiorama.block.SurveyPinBlockEntity;
 import com.sanhiruzu.zendiorama.block.WorldMapBlock;
 import com.sanhiruzu.zendiorama.block.WorldMapBlockEntity;
 import com.sanhiruzu.zendiorama.network.WorldMapSnapshotPayload;
@@ -89,6 +91,14 @@ public final class ZenDiorama {
                     .strength(1.5F)
                     .noCollission()));
 
+    public static final RegistryHandle<Block> SURVEY_PIN = registerBlock(
+            "survey_pin",
+            () -> new SurveyPinBlock(BlockBehaviour.Properties.of()
+                    .mapColor(MapColor.METAL)
+                    .strength(0.5F)
+                    .noCollission()
+                    .noOcclusion()));
+
     public static final RegistryHandle<BlockItem> DIORAMA_FRAME_ITEM = registerItem(
             "diorama_frame",
             () -> new DioramaFrameItem(DIORAMA_FRAME.get(), new Item.Properties()));
@@ -96,6 +106,10 @@ public final class ZenDiorama {
     public static final RegistryHandle<BlockItem> WORLD_MAP_ITEM = registerItem(
             "world_map",
             () -> new BlockItem(WORLD_MAP.get(), new Item.Properties()));
+
+    public static final RegistryHandle<BlockItem> SURVEY_PIN_ITEM = registerItem(
+            "survey_pin",
+            () -> new BlockItem(SURVEY_PIN.get(), new Item.Properties()));
 
     public static final RegistryHandle<BlockEntityType<DioramaFrameBlockEntity>> DIORAMA_FRAME_ENTITY =
             registerBlockEntity(
@@ -106,6 +120,11 @@ public final class ZenDiorama {
             registerBlockEntity(
                     "world_map",
                     () -> new BlockEntityType<>(WorldMapBlockEntity::new, Set.of(WORLD_MAP.get()), null));
+
+    public static final RegistryHandle<BlockEntityType<SurveyPinBlockEntity>> SURVEY_PIN_ENTITY =
+            registerBlockEntity(
+                    "survey_pin",
+                    () -> new BlockEntityType<>(SurveyPinBlockEntity::new, Set.of(SURVEY_PIN.get()), null));
 
     private static boolean initialized;
 
@@ -136,7 +155,7 @@ public final class ZenDiorama {
         }
         DioramaServices.platform().sendToPlayer(
                 player,
-                new WorldMapSnapshotPayload(worldMap.getBlockPos(), worldMap.getSnapshot()));
+                new WorldMapSnapshotPayload(worldMap.getBlockPos(), worldMap.getSnapshot(), worldMap.getSurveyPins()));
     }
 
     public static void sendWorldMapSnapshots(LevelChunk chunk, ServerPlayer player) {

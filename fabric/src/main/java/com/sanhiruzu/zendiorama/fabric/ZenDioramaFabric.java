@@ -65,6 +65,7 @@ public final class ZenDioramaFabric implements ModInitializer {
         ItemGroupEvents.modifyEntriesEvent(CreativeModeTabs.FUNCTIONAL_BLOCKS).register(entries -> {
             entries.accept(ZenDiorama.DIORAMA_FRAME_ITEM.get());
             entries.accept(ZenDiorama.WORLD_MAP_ITEM.get());
+            entries.accept(ZenDiorama.SURVEY_PIN_ITEM.get());
         });
 
         ServerTickEvents.END_SERVER_TICK.register(server -> {

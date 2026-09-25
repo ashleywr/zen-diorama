@@ -3,6 +3,7 @@ package com.sanhiruzu.zendiorama.block;
 import com.sanhiruzu.zendiorama.DioramaConfig;
 import com.sanhiruzu.zendiorama.ZenDiorama;
 import com.sanhiruzu.zendiorama.core.MiniatureSnapshot;
+import com.sanhiruzu.zendiorama.core.SurveyPinMarker;
 import com.sanhiruzu.zendiorama.core.SurfaceSampler;
 import com.sanhiruzu.zendiorama.network.WorldMapSnapshotRequestPayload;
 import com.sanhiruzu.zendiorama.network.WorldMapSnapshotPayload;
@@ -23,6 +24,7 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.level.chunk.LevelChunk;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayDeque;
@@ -33,6 +35,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.WeakHashMap;
 import java.util.function.Consumer;
 
 public class WorldMapBlockEntity extends BlockEntity {
@@ -40,6 +43,10 @@ public class WorldMapBlockEntity extends BlockEntity {
     private static final int SNAPSHOT_REFRESH_PHASES = 20;
     /** Client-side floor between snapshot requests for one tile. */
     private static final long SNAPSHOT_REQUEST_COOLDOWN_MILLIS = 2000L;
+    /** A map never needs more than this many visible markers in one tile. */
+    private static final int MAX_SURVEY_PINS_PER_MAP = 128;
+    private static final Set<WorldMapBlockEntity> ACTIVE_SERVER_MAPS =
+            Collections.newSetFromMap(new WeakHashMap<>());
     private boolean configured;
     private boolean layoutValid = true;
     private boolean layoutSevereInvalid;
@@ -71,9 +78,12 @@ public class WorldMapBlockEntity extends BlockEntity {
     private int presentationTilesWide = 1;
     private int presentationTilesTall = 1;
     private MiniatureSnapshot snapshot = new MiniatureSnapshot(0, List.of());
+    private List<SurveyPinMarker> surveyPins = List.of();
     public transient int snapshotVersion;
     /** Client-only baked GPU geometry ({@code CachedBlockGeometry}); typed as Object to avoid loading client classes server-side. */
     public transient Object renderCache;
+    /** Client-only marker overlay GPU buffer; kept separate from terrain LOD geometry. */
+    public transient Object surveyPinRenderCache;
     private transient MiniatureSnapshot sampledGridSnapshot;
     private transient int sampledGridSize = 1;
     /** Client-only: earliest wall-clock time another WorldMapSnapshotRequestPayload may be sent for
@@ -87,14 +97,27 @@ public class WorldMapBlockEntity extends BlockEntity {
 
     @Override
     public void setRemoved() {
+        if (level != null && !level.isClientSide) {
+            ACTIVE_SERVER_MAPS.remove(this);
+        }
         super.setRemoved();
-        if (renderCache instanceof AutoCloseable closeable) {
+        closeRenderCaches();
+    }
+
+    private void closeRenderCaches() {
+        closeRenderCache(renderCache);
+        closeRenderCache(surveyPinRenderCache);
+        renderCache = null;
+        surveyPinRenderCache = null;
+    }
+
+    private static void closeRenderCache(Object cache) {
+        if (cache instanceof AutoCloseable closeable) {
             try {
                 closeable.close();
             } catch (Exception ignored) {
                 // GPU buffer cleanup is best-effort
             }
-            renderCache = null;
         }
     }
 
@@ -326,6 +349,9 @@ public class WorldMapBlockEntity extends BlockEntity {
     @Override
     public void setLevel(Level level) {
         super.setLevel(level);
+        if (!level.isClientSide) {
+            ACTIVE_SERVER_MAPS.add(this);
+        }
         // Do NOT query neighbors here. setLevel fires during chunk loading; calling
         // getBlockEntity(adj) on a position that has no entity yet causes Minecraft to
         // create a new one, which calls setLevel() again → StackOverflowError.
@@ -359,6 +385,7 @@ public class WorldMapBlockEntity extends BlockEntity {
             return;
         }
         this.snapshot = fresh;
+        this.surveyPins = collectSurveyPins(overworld, originX, originZ, w);
         this.dirty = false;
         this.waitingForChunks = false;
         this.refreshImmediately = false;
@@ -373,7 +400,7 @@ public class WorldMapBlockEntity extends BlockEntity {
             // receives Dirty=false before the snapshot payload that follows it.
             net.minecraft.network.protocol.Packet<?> bePkt = getUpdatePacket();
             WorldMapSnapshotPayload payload = new WorldMapSnapshotPayload(
-                    worldPosition.immutable(), this.snapshot);
+                    worldPosition.immutable(), this.snapshot, this.surveyPins);
             for (ServerPlayer sp : DioramaServices.platform().trackingPlayers((ServerLevel) level, worldPosition)) {
                 if (bePkt != null) sp.connection.send(bePkt);
                 DioramaServices.platform().sendToPlayer(sp, payload);
@@ -382,23 +409,27 @@ public class WorldMapBlockEntity extends BlockEntity {
     }
 
     /** Sets the snapshot on the client side after receiving a {@link WorldMapSnapshotPayload}. */
-    public void setSnapshot(MiniatureSnapshot snapshot) {
+    public void setSnapshot(MiniatureSnapshot snapshot, List<SurveyPinMarker> surveyPins) {
         this.dirty = false;
         this.waitingForChunks = false;
         this.refreshImmediately = false;
         // Re-delivering the same snapshot (chunk re-send, group re-sync, a second reply to an
         // in-flight request) must not throw away the baked GPU mesh: dropping renderCache leaves
         // the renderer with nothing to draw until the async re-bake lands, which reads as a flicker.
-        if (snapshot.equals(this.snapshot)) {
+        List<SurveyPinMarker> copiedPins = List.copyOf(surveyPins);
+        if (snapshot.equals(this.snapshot) && copiedPins.equals(this.surveyPins)) {
             return;
         }
         this.snapshot = snapshot;
+        this.surveyPins = copiedPins;
         this.snapshotVersion++;
         this.sampledGridSnapshot = null;
-        if (renderCache instanceof AutoCloseable closeable) {
-            try { closeable.close(); } catch (Exception ignored) {}
-        }
-        renderCache = null;
+        closeRenderCaches();
+    }
+
+    /** Convenience for callers that only have terrain data. */
+    public void setSnapshot(MiniatureSnapshot snapshot) {
+        setSnapshot(snapshot, List.of());
     }
 
     public boolean isConfigured() { return configured && layoutValid; }
@@ -412,6 +443,54 @@ public class WorldMapBlockEntity extends BlockEntity {
     public int getMapCenterZ() { return mapCenterZ; }
     public int getBlocksPerTile() { return blocksPerTile > 0 ? blocksPerTile : DioramaConfig.MAP_BLOCKS_PER_TILE.get(); }
     public MiniatureSnapshot getSnapshot() { return snapshot; }
+    public List<SurveyPinMarker> getSurveyPins() { return surveyPins; }
+
+    /** Marks every loaded map tile displaying {@code pinPos}'s overworld area for a quick refresh. */
+    public static void refreshSurveyPinsAt(ServerLevel overworld, BlockPos pinPos) {
+        for (WorldMapBlockEntity worldMap : List.copyOf(ACTIVE_SERVER_MAPS)) {
+            if (worldMap.level == null
+                    || worldMap.level.getServer() != overworld.getServer()
+                    || !worldMap.hasStoredConfiguration()
+                    || !worldMap.covers(pinPos)) {
+                continue;
+            }
+            worldMap.markForImmediateRefresh();
+        }
+    }
+
+    private boolean covers(BlockPos pos) {
+        int width = getBlocksPerTile();
+        int originX = mapCenterX - width / 2;
+        int originZ = mapCenterZ - width / 2;
+        return pos.getX() >= originX && pos.getX() < originX + width
+                && pos.getZ() >= originZ && pos.getZ() < originZ + width;
+    }
+
+    private static List<SurveyPinMarker> collectSurveyPins(ServerLevel level, int originX, int originZ, int width) {
+        int maxX = originX + width - 1;
+        int maxZ = originZ + width - 1;
+        List<SurveyPinMarker> pins = new java.util.ArrayList<>();
+        for (int chunkX = Math.floorDiv(originX, 16); chunkX <= Math.floorDiv(maxX, 16); chunkX++) {
+            for (int chunkZ = Math.floorDiv(originZ, 16); chunkZ <= Math.floorDiv(maxZ, 16); chunkZ++) {
+                LevelChunk chunk = level.getChunkSource().getChunkNow(chunkX, chunkZ);
+                if (chunk == null) continue;
+                for (BlockEntity entity : chunk.getBlockEntities().values()) {
+                    if (entity instanceof SurveyPinBlockEntity pin) {
+                        SurveyPinMarker marker = pin.toMarker();
+                        if (marker.worldX() >= originX && marker.worldX() <= maxX
+                                && marker.worldZ() >= originZ && marker.worldZ() <= maxZ) {
+                            pins.add(marker);
+                        }
+                    }
+                }
+            }
+        }
+        pins.sort(java.util.Comparator.comparingInt(SurveyPinMarker::worldX)
+                .thenComparingInt(SurveyPinMarker::worldZ));
+        return pins.size() <= MAX_SURVEY_PINS_PER_MAP
+                ? List.copyOf(pins)
+                : List.copyOf(pins.subList(0, MAX_SURVEY_PINS_PER_MAP));
+    }
 
     public int getSampledGridSize() {
         if (sampledGridSnapshot == snapshot) {
@@ -877,10 +956,10 @@ public class WorldMapBlockEntity extends BlockEntity {
         // reply reset renderCache, so the map blinked continuously. Only ask when we have nothing
         // to draw yet.
         if (level != null && level.isClientSide()) {
-            MiniatureSnapshot pending = com.sanhiruzu.zendiorama.client.DioramaClientPayloadHandler
+            WorldMapSnapshotPayload pending = com.sanhiruzu.zendiorama.client.DioramaClientPayloadHandler
                     .takePendingSnapshot(worldPosition);
             if (pending != null) {
-                setSnapshot(pending);
+                setSnapshot(pending.snapshot(), pending.surveyPins());
             } else if (configured && snapshot.entries().isEmpty()) {
                 long now = System.currentTimeMillis();
                 if (now >= nextSnapshotRequestMillis) {

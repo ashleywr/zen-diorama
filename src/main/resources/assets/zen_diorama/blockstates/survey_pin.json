@@ -1,0 +1,9 @@
+{
+  "multipart": [
+    {
+      "apply": {
+        "model": "zen_diorama:block/survey_pin"
+      }
+    }
+  ]
+}

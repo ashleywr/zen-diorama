@@ -13,6 +13,7 @@ Zen Diorama is a Fabric and NeoForge mod for Minecraft 1.21.1 that builds miniat
 - Diorama frame blocks and items
 - A dedicated diorama dimension and return flow
 - World map blocks for miniature terrain presentation
+- Survey Pins: low-profile world markers that glow on World Maps at every zoom level
 - Client rendering for miniature blocks, lighting, and sky effects
 - Deterministic plot allocation and snapshot sampling logic
 
@@ -29,6 +30,10 @@ Zen Diorama is a Fabric and NeoForge mod for Minecraft 1.21.1 that builds miniat
 .\gradlew.bat test
 .\gradlew.bat build
 ```
+
+## Survey Pins
+
+Craft and place a Survey Pin anywhere in the loaded overworld to add a glowing marker to any World Map that covers it. Sneak + right-click the pin to cycle its map colour; nearby maps refresh automatically.
 
 ## Notes
 

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Survey Pins: subtle, colour-cycling world markers that appear as glowing points on World Maps at every zoom level.
+
 ## 1.0.1 - 2026-08-27
 
 ### Added
