@@ -4,7 +4,7 @@ Zen Diorama is a Fabric and NeoForge mod for Minecraft 1.21.1 that builds miniat
 
 ## Release
 
-- Version: `1.0.1`
+- Version: `1.0.2`
 - Minecraft: `1.21.1`
 - Loaders: Fabric and NeoForge `21.1.220`
 
@@ -20,7 +20,7 @@ Zen Diorama is a Fabric and NeoForge mod for Minecraft 1.21.1 that builds miniat
 ## Install
 
 1. Install Minecraft `1.21.1` with either Fabric Loader (and Fabric API) or NeoForge `21.1.220`.
-2. Download the matching Fabric or NeoForge release jar for `Zen Diorama` version `1.0.1`.
+2. Download the matching Fabric or NeoForge release jar for `Zen Diorama` version `1.0.2`.
 3. Place the jar in your `mods` folder.
 4. Launch the game.
 
